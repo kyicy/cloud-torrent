@@ -7,7 +7,6 @@ require (
 	github.com/anacrolix/torrent v1.40.0
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/jpillora/archive v0.0.0-20160301031048-e0b3681851f1
-	github.com/jpillora/backoff v1.0.0
 	github.com/jpillora/cookieauth v1.0.0
 	github.com/jpillora/opts v1.2.0
 	github.com/jpillora/requestlog v1.0.0

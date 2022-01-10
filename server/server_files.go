@@ -37,12 +37,12 @@ func (s *Server) listFiles() *fsNode {
 func (s *Server) serveFiles(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/download/") {
 		url := strings.TrimPrefix(r.URL.Path, "/download/")
-		//dldir is absolute
-		dldir := s.state.Config.DownloadDirectory
-		file := filepath.Join(dldir, url)
+		//dlDir is absolute
+		dlDir := s.state.Config.DownloadDirectory
+		file := filepath.Join(dlDir, url)
 		//only allow fetches/deletes inside the dl dir
-		if !strings.HasPrefix(file, dldir) || dldir == file {
-			http.Error(w, "Nice try\n"+dldir+"\n"+file, http.StatusBadRequest)
+		if !strings.HasPrefix(file, dlDir) || dlDir == file {
+			http.Error(w, "Nice try\n"+dlDir+"\n"+file, http.StatusBadRequest)
 			return
 		}
 		info, err := os.Stat(file)
@@ -84,11 +84,11 @@ func (s *Server) serveFiles(w http.ResponseWriter, r *http.Request) {
 
 func list(path string, info os.FileInfo, node *fsNode, n *int) error {
 	if (!info.IsDir() && !info.Mode().IsRegular()) || strings.HasPrefix(info.Name(), ".") {
-		return errors.New("Non-regular file")
+		return errors.New("non-regular file")
 	}
 	(*n)++
 	if (*n) > fileNumberLimit {
-		return errors.New("Over file limit") //limit number of files walked
+		return errors.New("over file limit") //limit number of files walked
 	}
 	node.Name = info.Name()
 	node.Size = info.Size()
@@ -98,7 +98,7 @@ func list(path string, info os.FileInfo, node *fsNode, n *int) error {
 	}
 	children, err := ioutil.ReadDir(path)
 	if err != nil {
-		return fmt.Errorf("Failed to list files")
+		return fmt.Errorf("failed to list files")
 	}
 	node.Size = 0
 	for _, i := range children {
