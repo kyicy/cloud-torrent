@@ -3,3 +3,4 @@ cloud-torrent.json
 tmp/
 dev.sh
 .torrent*
+cloud-torrent
