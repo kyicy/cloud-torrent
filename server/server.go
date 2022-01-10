@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/NYTimes/gziphandler"
-	"github.com/jpillora/cloud-torrent/engine"
-	"github.com/jpillora/cloud-torrent/static"
 	"github.com/jpillora/cookieauth"
 	"github.com/jpillora/requestlog"
 	"github.com/jpillora/scraper/scraper"
 	"github.com/jpillora/velox"
+	"github.com/kyicy/cloud-torrent/engine"
+	ctstatic "github.com/kyicy/cloud-torrent/static"
 	"github.com/skratchdot/open-golang/open"
 )
 
@@ -65,7 +65,7 @@ type Server struct {
 func (s *Server) Run(version string) error {
 	isTLS := s.CertPath != "" || s.KeyPath != "" //poor man's XOR
 	if isTLS && (s.CertPath == "" || s.KeyPath == "") {
-		return fmt.Errorf("You must provide both key and cert paths")
+		return fmt.Errorf("you must provide both key and cert paths")
 	}
 	s.state.Stats.Title = s.Title
 	s.state.Stats.Version = version
@@ -101,11 +101,11 @@ func (s *Server) Run(version string) error {
 	}
 	if _, err := os.Stat(s.ConfigPath); err == nil {
 		if b, err := ioutil.ReadFile(s.ConfigPath); err != nil {
-			return fmt.Errorf("Read configuration error: %s", err)
+			return fmt.Errorf("read configuration error: %s", err)
 		} else if len(b) == 0 {
 			//ignore empty file
 		} else if err := json.Unmarshal(b, &c); err != nil {
-			return fmt.Errorf("Malformed configuration: %s", err)
+			return fmt.Errorf("malformed configuration: %s", err)
 		}
 	}
 	if c.IncomingPort <= 0 || c.IncomingPort >= 65535 {
@@ -193,7 +193,7 @@ func (s *Server) Run(version string) error {
 func (s *Server) reconfigure(c engine.Config) error {
 	dldir, err := filepath.Abs(c.DownloadDirectory)
 	if err != nil {
-		return fmt.Errorf("Invalid path")
+		return fmt.Errorf("invalid path")
 	}
 	c.DownloadDirectory = dldir
 	if err := s.engine.Configure(c); err != nil {
