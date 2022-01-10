@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anacrolix/dht"
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/metainfo"
 )
@@ -32,26 +31,20 @@ func (e *Engine) Config() Config {
 }
 
 func (e *Engine) Configure(c Config) error {
-	//recieve config
+	//receive config
 	if e.client != nil {
 		e.client.Close()
 		time.Sleep(1 * time.Second)
 	}
 	if c.IncomingPort <= 0 {
-		return fmt.Errorf("Invalid incoming port (%d)", c.IncomingPort)
+		return fmt.Errorf("invalid incoming port (%d)", c.IncomingPort)
 	}
-	tc := torrent.Config{
-		DHTConfig: dht.ServerConfig{
-			StartingNodes: dht.GlobalBootstrapAddrs,
-		},
-		DataDir:    c.DownloadDirectory,
-		ListenAddr: "0.0.0.0:" + strconv.Itoa(c.IncomingPort),
-		NoUpload:   !c.EnableUpload,
-		Seed:       c.EnableSeeding,
-	}
-	tc.DisableEncryption = c.DisableEncryption
+	tc := torrent.NewDefaultClientConfig()
+	tc.DataDir = c.DownloadDirectory
 
-	client, err := torrent.NewClient(&tc)
+	tc.SetListenAddr(":" + strconv.Itoa(c.IncomingPort))
+
+	client, err := torrent.NewClient(tc)
 	if err != nil {
 		return err
 	}
@@ -125,7 +118,7 @@ func (e *Engine) getTorrent(infohash string) (*Torrent, error) {
 	}
 	t, ok := e.ts[ih.HexString()]
 	if !ok {
-		return t, fmt.Errorf("Missing torrent %x", ih)
+		return t, fmt.Errorf("missing torrent %x", ih)
 	}
 	return t, nil
 }
@@ -151,7 +144,7 @@ func (e *Engine) StartTorrent(infohash string) error {
 		return err
 	}
 	if t.Started {
-		return fmt.Errorf("Already started")
+		return fmt.Errorf("already started")
 	}
 	t.Started = true
 	for _, f := range t.Files {
@@ -171,7 +164,7 @@ func (e *Engine) StopTorrent(infohash string) error {
 		return err
 	}
 	if !t.Started {
-		return fmt.Errorf("Already stopped")
+		return fmt.Errorf("already stopped")
 	}
 	//there is no stop - kill underlying torrent
 	t.t.Drop()
@@ -211,14 +204,14 @@ func (e *Engine) StartFile(infohash, filepath string) error {
 		}
 	}
 	if f == nil {
-		return fmt.Errorf("Missing file %s", filepath)
+		return fmt.Errorf("missing file %s", filepath)
 	}
 	if f.Started {
-		return fmt.Errorf("Already started")
+		return fmt.Errorf("already started")
 	}
 	t.Started = true
 	f.Started = true
-	f.f.PrioritizeRegion(0, f.Size)
+	f.f.Download()
 	return nil
 }
 
@@ -230,10 +223,10 @@ func str2ih(str string) (metainfo.Hash, error) {
 	var ih metainfo.Hash
 	e, err := hex.Decode(ih[:], []byte(str))
 	if err != nil {
-		return ih, fmt.Errorf("Invalid hex string")
+		return ih, fmt.Errorf("invalid hex string")
 	}
 	if e != 20 {
-		return ih, fmt.Errorf("Invalid length")
+		return ih, fmt.Errorf("invalid length")
 	}
 	return ih, nil
 }

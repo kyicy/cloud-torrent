@@ -11,20 +11,20 @@ import (
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/metainfo"
 
-	"github.com/jpillora/cloud-torrent/engine"
+	"github.com/kyicy/cloud-torrent/engine"
 )
 
 func (s *Server) api(r *http.Request) error {
 	defer r.Body.Close()
 	if r.Method != "POST" {
-		return fmt.Errorf("Invalid request method (expecting POST)")
+		return fmt.Errorf("invalid request method (expecting POST)")
 	}
 
 	action := strings.TrimPrefix(r.URL.Path, "/api/")
 
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("Failed to download request body")
+		return fmt.Errorf("failed to download request body")
 	}
 
 	//convert url into torrent bytes
@@ -32,12 +32,12 @@ func (s *Server) api(r *http.Request) error {
 		url := string(data)
 		remote, err := http.Get(url)
 		if err != nil {
-			return fmt.Errorf("Invalid remote torrent URL: %s (%s)", err, url)
+			return fmt.Errorf("invalid remote torrent URL: %s (%s)", err, url)
 		}
 		//TODO enforce max body size (32k?)
 		data, err = ioutil.ReadAll(remote.Body)
 		if err != nil {
-			return fmt.Errorf("Failed to download remote torrent: %s", err)
+			return fmt.Errorf("failed to download remote torrent: %s", err)
 		}
 		action = "torrentfile"
 	}
@@ -51,7 +51,7 @@ func (s *Server) api(r *http.Request) error {
 		}
 		spec := torrent.TorrentSpecFromMetaInfo(info)
 		if err := s.engine.NewTorrent(spec); err != nil {
-			return fmt.Errorf("Torrent error: %s", err)
+			return fmt.Errorf("torrent error: %s", err)
 		}
 		return nil
 	}
@@ -72,12 +72,12 @@ func (s *Server) api(r *http.Request) error {
 	case "magnet":
 		uri := string(data)
 		if err := s.engine.NewMagnet(uri); err != nil {
-			return fmt.Errorf("Magnet error: %s", err)
+			return fmt.Errorf("magnet error: %s", err)
 		}
 	case "torrent":
 		cmd := strings.SplitN(string(data), ":", 2)
 		if len(cmd) != 2 {
-			return fmt.Errorf("Invalid request")
+			return fmt.Errorf("invalid request")
 		}
 		state := cmd[0]
 		infohash := cmd[1]
@@ -94,12 +94,12 @@ func (s *Server) api(r *http.Request) error {
 				return err
 			}
 		} else {
-			return fmt.Errorf("Invalid state: %s", state)
+			return fmt.Errorf("invalid state: %s", state)
 		}
 	case "file":
 		cmd := strings.SplitN(string(data), ":", 3)
 		if len(cmd) != 3 {
-			return fmt.Errorf("Invalid request")
+			return fmt.Errorf("invalid request")
 		}
 		state := cmd[0]
 		infohash := cmd[1]
@@ -113,10 +113,10 @@ func (s *Server) api(r *http.Request) error {
 				return err
 			}
 		} else {
-			return fmt.Errorf("Invalid state: %s", state)
+			return fmt.Errorf("invalid state: %s", state)
 		}
 	default:
-		return fmt.Errorf("Invalid action: %s", action)
+		return fmt.Errorf("invalid action: %s", action)
 	}
 	return nil
 }

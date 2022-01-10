@@ -2,26 +2,30 @@ package server
 
 import (
 	"compress/gzip"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/NYTimes/gziphandler"
-	"github.com/jpillora/cloud-torrent/engine"
-	"github.com/jpillora/cloud-torrent/static"
+	humanize "github.com/dustin/go-humanize"
 	"github.com/jpillora/cookieauth"
 	"github.com/jpillora/requestlog"
 	"github.com/jpillora/scraper/scraper"
 	"github.com/jpillora/velox"
+	"github.com/kyicy/cloud-torrent/engine"
+	ctstatic "github.com/kyicy/cloud-torrent/static"
 	"github.com/skratchdot/open-golang/open"
 )
 
@@ -65,7 +69,7 @@ type Server struct {
 func (s *Server) Run(version string) error {
 	isTLS := s.CertPath != "" || s.KeyPath != "" //poor man's XOR
 	if isTLS && (s.CertPath == "" || s.KeyPath == "") {
-		return fmt.Errorf("You must provide both key and cert paths")
+		return fmt.Errorf("you must provide both key and cert paths")
 	}
 	s.state.Stats.Title = s.Title
 	s.state.Stats.Version = version
@@ -78,7 +82,7 @@ func (s *Server) Run(version string) error {
 	s.files = http.HandlerFunc(s.serveFiles)
 	s.static = ctstatic.FileSystemHandler()
 	s.scraper = &scraper.Handler{
-		Log: false, Debug: false,
+		Log: true, Debug: false,
 		Headers: map[string]string{
 			//we're a trusty browser :)
 			"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36",
@@ -89,7 +93,6 @@ func (s *Server) Run(version string) error {
 	}
 	//scraper
 	s.state.SearchProviders = s.scraper.Config //share scraper config
-	go s.fetchSearchConfigLoop()
 	s.scraperh = http.StripPrefix("/search", s.scraper)
 	//torrent engine
 	s.engine = engine.New()
@@ -101,11 +104,11 @@ func (s *Server) Run(version string) error {
 	}
 	if _, err := os.Stat(s.ConfigPath); err == nil {
 		if b, err := ioutil.ReadFile(s.ConfigPath); err != nil {
-			return fmt.Errorf("Read configuration error: %s", err)
+			return fmt.Errorf("read configuration error: %s", err)
 		} else if len(b) == 0 {
 			//ignore empty file
 		} else if err := json.Unmarshal(b, &c); err != nil {
-			return fmt.Errorf("Malformed configuration: %s", err)
+			return fmt.Errorf("malformed configuration: %s", err)
 		}
 	}
 	if c.IncomingPort <= 0 || c.IncomingPort >= 65535 {
@@ -191,11 +194,11 @@ func (s *Server) Run(version string) error {
 }
 
 func (s *Server) reconfigure(c engine.Config) error {
-	dldir, err := filepath.Abs(c.DownloadDirectory)
+	dlDir, err := filepath.Abs(c.DownloadDirectory)
 	if err != nil {
-		return fmt.Errorf("Invalid path")
+		return fmt.Errorf("invalid path")
 	}
-	c.DownloadDirectory = dldir
+	c.DownloadDirectory = dlDir
 	if err := s.engine.Configure(c); err != nil {
 		return err
 	}
@@ -228,6 +231,76 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	//search
 	if strings.HasPrefix(r.URL.Path, "/search") {
+		if r.URL.Path == "/search/tpb" {
+			q := r.URL.Query().Get("query")
+			ctx := context.Background()
+			client := http.DefaultClient
+			req, err := http.NewRequestWithContext(
+				ctx,
+				http.MethodGet,
+				fmt.Sprintf("https://apibay.org/q.php?q=%s&cat=0", q),
+				nil,
+			)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			req.Header = http.Header{
+				"Refer":              []string{"https://thepiratebay.org/"},
+				"User-Agent":         []string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36"},
+				"sec-ch-ua-platform": []string{`"Windows"`},
+			}
+			res, err := client.Do(req)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			defer res.Body.Close()
+			data, err := io.ReadAll(res.Body)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			items := make([]struct {
+				Name  string `json:"name"`
+				Hash  string `json:"info_hash"`
+				Size  string `json:"size"`
+				Seeds string `json:"seeders"`
+				Peers string `json:"leechers"`
+			}, 0, 100)
+			err = json.Unmarshal(data, &items)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			type outItem struct {
+				Name   string `json:"name"`
+				Magnet string `json:"magnet"`
+				Size   string `json:"size"`
+				Seeds  string `json:"seeds"`
+				Peers  string `json:"peers"`
+			}
+			outItems := make([]outItem, 0, 100)
+
+			for _, item := range items {
+				s, _ := strconv.ParseInt(item.Size, 10, 64)
+
+				outItems = append(outItems, outItem{
+					Name:   item.Name,
+					Magnet: fmt.Sprintf("magnet:?xt=urn:btih:%s", item.Hash),
+					Size:   humanize.Bytes(uint64(s)),
+					Seeds:  item.Seeds,
+					Peers:  item.Peers,
+				})
+			}
+			b, err := json.Marshal(outItems)
+			if err != nil {
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(b)
+			return
+		}
 		s.scraperh.ServeHTTP(w, r)
 		return
 	}
