@@ -194,11 +194,11 @@ func (s *Server) Run(version string) error {
 }
 
 func (s *Server) reconfigure(c engine.Config) error {
-	dldir, err := filepath.Abs(c.DownloadDirectory)
+	dlDir, err := filepath.Abs(c.DownloadDirectory)
 	if err != nil {
 		return fmt.Errorf("invalid path")
 	}
-	c.DownloadDirectory = dldir
+	c.DownloadDirectory = dlDir
 	if err := s.engine.Configure(c); err != nil {
 		return err
 	}
